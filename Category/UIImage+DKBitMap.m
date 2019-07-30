@@ -9,8 +9,51 @@
 #import "UIImage+DKBitMap.h"
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
+#import <Accelerate/Accelerate.h>
 
 @implementation UIImage (DKBitMap)
+
++ (unsigned char *)dk_convertUIImageToBitmapRGBA8:(UIImage *) image
+{
+    vImage_Buffer src = [UIImage dk_convertImage:image];
+    return src.data;
+}
+
++ (unsigned char *)dk_convertARGBImageToBitmapRGBA8:(UIImage *)image
+{
+    vImage_Buffer src = [UIImage dk_convertImage:image];
+    const uint8_t map[4] = {1,2,3,0};
+    vImage_Buffer dest = [UIImage dk_convertImage:image];
+    vImagePermuteChannels_ARGB8888(&src, &dest, map, kvImageNoFlags);
+    return dest.data;
+}
+
++ (vImage_Buffer)dk_convertImage:(UIImage *)image
+{
+    CGImageRef sourceRef = [image CGImage];
+    NSUInteger sourceWidth = CGImageGetWidth(sourceRef);
+    NSUInteger sourceHeight = CGImageGetHeight(sourceRef);
+    
+    CGDataProviderRef provider = CGImageGetDataProvider(sourceRef);
+    CFDataRef bitmapData = CGDataProviderCopyData(provider);
+    
+    unsigned char *sourceData = (unsigned char*)calloc(sourceHeight * sourceWidth * 4, sizeof(unsigned char));
+    NSUInteger bytesPerPixel = 4;
+    NSUInteger sourceBytesPerRow = bytesPerPixel * sourceWidth;
+    
+    CFDataGetBytes(bitmapData, CFRangeMake(0, CFDataGetLength(bitmapData)), sourceData);
+    
+    vImage_Buffer v_image = {
+        .data = (void *)sourceData,
+        .height = sourceHeight,
+        .width = sourceWidth,
+        .rowBytes = sourceBytesPerRow
+    };
+    
+    CFRelease(bitmapData);
+    
+    return v_image;
+}
 
 - (NSData *)dk_toJpegData:(CGFloat )compressionQuality
               hasAlpha:(BOOL)hasAlpha
